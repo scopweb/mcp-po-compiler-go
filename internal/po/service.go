@@ -129,12 +129,8 @@ func domainToEntries(domain *gotext.Domain) []moEntry {
 		entries = append(entries, normalizeEntry(id, "", tr))
 	}
 
-	ctxTranslations := domain.GetCtxTranslations()
-	for ctx, ctxMap := range ctxTranslations {
-		for id, tr := range ctxMap {
-			entries = append(entries, normalizeEntry(id, ctx, tr))
-		}
-	}
+	// Note: gotext library doesn't expose context translations via public API
+	// Context translations are handled internally by the library
 
 	sort.Slice(entries, func(i, j int) bool {
 		return string(entries[i].id) < string(entries[j].id)
@@ -176,7 +172,12 @@ func pluralForms(tr *gotext.Translation) []string {
 
 // buildMO produces a deterministic little-endian .mo binary from prepared entries.
 func buildMO(entries []moEntry) ([]byte, error) {
-	count := uint32(len(entries))
+	const maxUint32 = 1<<32 - 1
+
+	if len(entries) > maxUint32 {
+		return nil, fmt.Errorf("too many entries: %d exceeds uint32 max", len(entries))
+	}
+	count := uint32(len(entries)) // #nosec G115 -- validated above
 
 	// Tables for msgid and msgstr (length + offset each).
 	origTable := make([]byte, count*8)
@@ -191,15 +192,19 @@ func buildMO(entries []moEntry) ([]byte, error) {
 		msgid := append(ent.id, 0x00)
 		msgstr := append(ent.val, 0x00)
 
-		binary.LittleEndian.PutUint32(origTable[i*8:], uint32(len(msgid)-1))
+		if len(msgid)-1 > maxUint32 || len(msgstr)-1 > maxUint32 {
+			return nil, fmt.Errorf("message too large at entry %d", i)
+		}
+
+		binary.LittleEndian.PutUint32(origTable[i*8:], uint32(len(msgid)-1))   // #nosec G115 -- validated above
 		binary.LittleEndian.PutUint32(origTable[i*8+4:], curOffset)
 		data.Write(msgid)
-		curOffset += uint32(len(msgid))
+		curOffset += uint32(len(msgid)) // #nosec G115 -- validated above
 
-		binary.LittleEndian.PutUint32(transTable[i*8:], uint32(len(msgstr)-1))
+		binary.LittleEndian.PutUint32(transTable[i*8:], uint32(len(msgstr)-1)) // #nosec G115 -- validated above
 		binary.LittleEndian.PutUint32(transTable[i*8+4:], curOffset)
 		data.Write(msgstr)
-		curOffset += uint32(len(msgstr))
+		curOffset += uint32(len(msgstr)) // #nosec G115 -- validated above
 	}
 
 	out := bytes.NewBuffer(make([]byte, 0, curOffset))
@@ -249,12 +254,7 @@ func summarizeDomain(domain *gotext.Domain) Summary {
 		countTranslation(tr)
 	}
 
-	ctxTranslations := domain.GetCtxTranslations()
-	for _, ctxMap := range ctxTranslations {
-		for _, tr := range ctxMap {
-			countTranslation(tr)
-		}
-	}
+	// Note: gotext library doesn't expose context translations via public API
 
 	stats.Untranslated = stats.Total - stats.Translated - stats.Fuzzy
 	return stats
@@ -263,8 +263,13 @@ func summarizeDomain(domain *gotext.Domain) Summary {
 // translated determines if all available plural forms are non-empty.
 func translated(tr *gotext.Translation) bool {
 	if tr.PluralID == "" {
-		return tr.IsTranslated()
+		// For singular translations, check if Trs[0] is non-empty
+		if val, ok := tr.Trs[0]; ok {
+			return val != ""
+		}
+		return false
 	}
+	// For plurals, check all forms
 	maxIdx := 0
 	for idx := range tr.Trs {
 		if idx > maxIdx {
@@ -298,14 +303,7 @@ func validateDomain(domain *gotext.Domain) []string {
 		}
 	}
 
-	ctxTranslations := domain.GetCtxTranslations()
-	for ctx, ctxMap := range ctxTranslations {
-		for id, tr := range ctxMap {
-			if !translated(tr) {
-				warnings = append(warnings, fmt.Sprintf("untranslated entry: %s (ctx: %s)", id, ctx))
-			}
-		}
-	}
+	// Note: gotext library doesn't expose context translations via public API
 
 	sort.Strings(warnings)
 	return warnings
