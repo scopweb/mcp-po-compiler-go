@@ -1,0 +1,73 @@
+# Spanish (Spain) translation for SCP Pinterest Plugin
+# Copyright (C) 2025 jotajotape
+# This file is distributed under the same license as the SCP Pinterest Plugin package.
+msgid ""
+msgstr ""
+"Project-Id-Version: SCP Pinterest Plugin\n"
+"Report-Msgid-Bugs-To: https://github.com/scopweb/scp-pinterest\n"
+"POT-Creation-Date: 2025-08-15 12:00+0000\n"
+"PO-Revision-Date: 2025-08-15 12:00+0000\n"
+"Language-Team: Spanish\n"
+"Language: es_ES\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Schema JSON-LD strings
+msgid "Custom-made and customizable youth furniture. Request a quote without obligation."
+msgstr "Mobiliario juvenil fabricado a medida y personalizable. Solicita presupuesto sin compromiso."
+
+msgid "Price"
+msgstr "Precio"
+
+msgid "On request / Quote"
+msgstr "A consultar / Bajo presupuesto"
+
+msgid "Manufacturing Time"
+msgstr "Tiempo de Fabricación"
+
+msgid "2-3 months"
+msgstr "2-3 meses"
+
+msgid "Made to measure"
+msgstr "Hecho a medida"
+
+msgid "Yes"
+msgstr "Sí"
+
+msgid "Customizable"
+msgstr "Personalizable"
+
+msgid "Composition Number"
+msgstr "Número de composición"
+
+msgid "Collection"
+msgstr "Colección"
+
+msgid "Wood"
+msgstr "Madera"
+
+msgid "Metal"
+msgstr "Metal"
+
+# Button and filter labels
+msgid "Ficha+"
+msgstr "Ficha+"
+
+msgid "TODO"
+msgstr "TODO"
+
+# Navigation buttons
+msgid "Your nearest store"
+msgstr "Tu tienda más cercana"
+
+msgid "Go back"
+msgstr "Volver atrás"
+
+msgid "Back to %s"
+msgstr "Volver a %s"
+
+# Legacy - deprecated but kept for compatibility
+msgid "Ampliar+"
+msgstr "Ampliar+"
