@@ -1,0 +1,62 @@
+{
+  "name": "go-po-compiler-mcp",
+  "description": "MCP server that compiles gettext .po to .mo and validates catalogs for WordPress.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "tools": [
+    {
+      "name": "compile_po",
+      "description": "Compile gettext .po content into .mo binary compatible with WordPress.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "po_content": {
+            "type": "string",
+            "description": "Full .po file content (UTF-8)."
+          },
+          "return": {
+            "type": "string",
+            "enum": ["base64", "path"],
+            "default": "base64",
+            "description": "Return compiled .mo as base64 or write to a temp path."
+          }
+        },
+        "required": ["po_content"]
+      }
+    },
+    {
+      "name": "validate_po",
+      "description": "Validate a .po catalog and report issues (headers, plurals, fuzzy, missing).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "po_content": {
+            "type": "string",
+            "description": "Full .po file content (UTF-8)."
+          }
+        },
+        "required": ["po_content"]
+      }
+    },
+    {
+      "name": "summarize_po",
+      "description": "Summarize headers and translation progress of a .po catalog.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "po_content": {
+            "type": "string",
+            "description": "Full .po file content (UTF-8)."
+          }
+        },
+        "required": ["po_content"]
+      }
+    }
+  ],
+  "capabilities": {
+    "rateLimits": {
+      "requestsPerMinute": 120,
+      "concurrency": 4
+    }
+  }
+}
