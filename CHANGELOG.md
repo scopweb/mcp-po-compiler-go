@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-02-07
+
+### Fixed
+
+- Implemented full MCP stdio transport (JSON-RPC 2.0 over stdin/stdout)
+- Server now properly responds to initialize, tools/list, and tools/call methods
+- Compatible with Claude Code, Claude Desktop, and other MCP clients
+
 ## [1.0.1] - 2026-02-07
 
 ### Changed
