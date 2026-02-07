@@ -51,12 +51,22 @@ func (s *Service) Compile(ctx context.Context, poContent string, returnMode stri
 	}
 
 	entries := domainToEntries(domain)
+
+	// Add context translations (msgctxt) that gotext doesn't expose via GetTranslations()
+	ctxEntries := parseContextTranslations(poContent)
+	entries = append(entries, ctxEntries...)
+
+	// Re-sort after adding context entries
+	sort.Slice(entries, func(i, j int) bool {
+		return string(entries[i].id) < string(entries[j].id)
+	})
+
 	moBin, err := buildMO(entries)
 	if err != nil {
 		return nil, err
 	}
 
-	stats := summarizeDomain(domain)
+	stats := summarizeDomainWithContext(domain, poContent)
 
 	switch strings.ToLower(returnMode) {
 	case "path":
@@ -106,7 +116,123 @@ func parseDomain(poContent string) (*gotext.Domain, error) {
 	p := gotext.NewPo()
 	p.Parse([]byte(poContent))
 	domain := p.GetDomain()
+
+	// Extract headers manually since gotext doesn't populate Language/PluralForms from Parse()
+	if translations := domain.GetTranslations(); translations != nil {
+		if headerTr, ok := translations[""]; ok {
+			headerStr := headerTr.Get()
+			domain.Language = extractHeader(headerStr, "Language")
+			domain.PluralForms = extractHeader(headerStr, "Plural-Forms")
+		}
+	}
+
 	return domain, nil
+}
+
+// extractHeader extracts a header value from the PO header string.
+func extractHeader(headerStr, headerName string) string {
+	lines := strings.Split(headerStr, "\n")
+	prefix := headerName + ":"
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		}
+	}
+	return ""
+}
+
+// parseContextTranslations extracts msgctxt entries from raw PO content.
+// gotext library doesn't expose context translations via GetTranslations(),
+// so we parse them manually.
+func parseContextTranslations(poContent string) []moEntry {
+	var entries []moEntry
+	lines := strings.Split(poContent, "\n")
+
+	var currentCtx, currentID, currentStr string
+	var inMsgctxt, inMsgid, inMsgstr bool
+
+	flushEntry := func() {
+		if currentCtx != "" && currentID != "" {
+			// MO format for context: context + EOT (0x04) + msgid
+			key := currentCtx + "\x04" + currentID
+			entries = append(entries, moEntry{[]byte(key), []byte(currentStr)})
+		}
+		currentCtx, currentID, currentStr = "", "", ""
+		inMsgctxt, inMsgid, inMsgstr = false, false, false
+	}
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip comments and empty lines
+		if line == "" || strings.HasPrefix(line, "#") {
+			if inMsgstr && currentCtx != "" {
+				flushEntry()
+			}
+			continue
+		}
+
+		// Parse msgctxt
+		if strings.HasPrefix(line, "msgctxt ") {
+			if inMsgstr && currentCtx != "" {
+				flushEntry()
+			}
+			currentCtx = extractQuotedString(line[8:])
+			inMsgctxt, inMsgid, inMsgstr = true, false, false
+			continue
+		}
+
+		// Parse msgid (only track if we have a context)
+		if strings.HasPrefix(line, "msgid ") {
+			currentID = extractQuotedString(line[6:])
+			inMsgctxt, inMsgid, inMsgstr = false, true, false
+			continue
+		}
+
+		// Parse msgstr
+		if strings.HasPrefix(line, "msgstr ") {
+			currentStr = extractQuotedString(line[7:])
+			inMsgctxt, inMsgid, inMsgstr = false, false, true
+			continue
+		}
+
+		// Handle continuation strings
+		if strings.HasPrefix(line, "\"") {
+			quoted := extractQuotedString(line)
+			if inMsgctxt {
+				currentCtx += quoted
+			} else if inMsgid {
+				currentID += quoted
+			} else if inMsgstr {
+				currentStr += quoted
+			}
+		}
+	}
+
+	// Flush last entry
+	if currentCtx != "" {
+		flushEntry()
+	}
+
+	return entries
+}
+
+// extractQuotedString removes surrounding quotes and unescapes the string.
+func extractQuotedString(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+		return s
+	}
+	s = s[1 : len(s)-1]
+
+	// Unescape common sequences
+	s = strings.ReplaceAll(s, "\\n", "\n")
+	s = strings.ReplaceAll(s, "\\t", "\t")
+	s = strings.ReplaceAll(s, "\\\"", "\"")
+	s = strings.ReplaceAll(s, "\\\\", "\\")
+
+	return s
 }
 
 // moEntry represents a single msgid/msgstr pair for .mo output.
@@ -239,6 +365,11 @@ func buildMO(entries []moEntry) ([]byte, error) {
 
 // summarizeDomain collects basic metrics for progress reporting.
 func summarizeDomain(domain *gotext.Domain) Summary {
+	return summarizeDomainWithContext(domain, "")
+}
+
+// summarizeDomainWithContext collects metrics including context translations.
+func summarizeDomainWithContext(domain *gotext.Domain, poContent string) Summary {
 	stats := Summary{Language: domain.Language}
 
 	countTranslation := func(tr *gotext.Translation) {
@@ -254,7 +385,16 @@ func summarizeDomain(domain *gotext.Domain) Summary {
 		countTranslation(tr)
 	}
 
-	// Note: gotext library doesn't expose context translations via public API
+	// Count context translations from raw PO content
+	if poContent != "" {
+		ctxEntries := parseContextTranslations(poContent)
+		for _, entry := range ctxEntries {
+			stats.Total++
+			if len(entry.val) > 0 {
+				stats.Translated++
+			}
+		}
+	}
 
 	stats.Untranslated = stats.Total - stats.Translated - stats.Fuzzy
 	return stats
